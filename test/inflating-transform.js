@@ -5,10 +5,11 @@ const InflatingTransform = require("../index");
 
 const { assertThat, is } = require("hamjest");
 
+const NUM_IDS = parseInt(process.env.NUM_IDS || 10)
+
 describe("InflatingTransform", function() {
 	it("should use backpressure correctly", async function() {
-		const numIds = 10;
-		const accountNumbers = new GeneratorStream(numIds);
+		const accountNumbers = new GeneratorStream(NUM_IDS);
 		const accountLookup = new AccountLookupStream();
 		const counter = new CountingStream();
 
@@ -16,7 +17,7 @@ describe("InflatingTransform", function() {
 
 		const result = counter.count
 
-		assertThat("Not all ids processed", result, is(numIds))
+		assertThat("Not all ids processed", result, is(NUM_IDS))
 		assertThat("Backpressure not used", accountLookup.readyUsed, is(true))
 	})
 });
