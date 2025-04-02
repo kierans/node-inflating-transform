@@ -1,0 +1,32 @@
+{
+  "name": "inflating-transform",
+  "version": "0.1.0",
+  "description": "Transform stream that handles large volumes of data",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha test --timeout=30000"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:kierans/node-inflating-stream.git"
+  },
+  "keywords": [
+    "transform",
+    "streams"
+  ],
+  "files": [
+    "index.js",
+    "README.md"
+  ],
+  "author": "Kieran Simpson <kierans777@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/kierans/node-inflating-stream/issues"
+  },
+  "homepage": "https://github.com/kierans/node-inflating-stream#readme",
+  "devDependencies": {
+    "@types/node": "^18.19.84",
+    "hamjest": "^4.1.0",
+    "mocha": "^11.1.0"
+  }
+}
