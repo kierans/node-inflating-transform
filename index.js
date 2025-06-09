@@ -9,15 +9,15 @@ const { Transform } = require("node:stream")
  *
  * A common scenario can occur when a Transform is outputting more data than it is receiving
  * into the transformation process. For example, when unzipping or inflating compressed data,
- * the output from the stream is larger than the input. In this scenario it is not uncommon
+ * the output from the stream is larger than the input. In this scenario, it is not uncommon
  * to fill the read buffer faster than it can be consumed.
  *
- * The Writable stream has a mechanism for signalling when it is full and producers have to
+ * The Writable stream has a mechanism for signalling when it is full, and producers have to
  * pause. When the write buffer is full, `write` will return false, and the client
  * needs to wait for the `drain` event before writing more data.
  *
  * When adding data to the Readable read buffer, the `push` method is used. However, if the
- * consumer of the Readable is slower than the transform is pushing data (for example printing
+ * consumer of the Readable is slower than the transform is pushing data (for example, printing
  * to stdout), `push` will return false, indicating the transform needs to wait before pushing
  * more. But how is it to know when it can continue? Turns out there isn't an event for that.
  *
@@ -44,6 +44,22 @@ class InflatingTransform extends Transform {
 	}
 
 	_read(size) {
+		/*
+		 * When untransformed data is written into the Writable stream, it is transformed straight
+		 * away, queuing up the transformed data in the Readable stream buffer. But once the buffer
+		 * is full, the Transform should delay calling the callback provided by the upstream producer
+		 * (this is the `callback` argument to `_transform`). So no more data will flow in. The
+		 * Writable side of the stream is therefore effectively paused.
+     *
+		 * When the downstream consumer reads transformed data, it pulls off the Readable streams
+		 * buffer, and when it runs out, it calls `_read` to get more data. However, when `_read`
+		 * is called here in `InflatingTransform`, the Transform is paused because the buffer was
+		 * full. But now the Readable buffer is empty.
+		 *
+		 * Therefore, we have to emit the `ready` event **first** to allow the Transform stream to
+		 * resume and starting pushing data into the Readable stream buffer before calling the
+		 * superclass `_read` method. Otherwise, the consumer will have nothing to read.
+		 */
 		this.emit("ready")
 
 		super._read(size)
