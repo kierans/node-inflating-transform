@@ -38,6 +38,8 @@ $ npm install inflating-transform
 ```
 
 ```javascript
+const InflatingTransform = require("inflating-transform");
+
 const stream = new InflatingTransform({ 
   transform(chunk, encoding, callback) {
     const more = this.push(doSomethingWithChunk(chunk))
