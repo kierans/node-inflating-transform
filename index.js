@@ -45,20 +45,23 @@ class InflatingTransform extends Transform {
 
 	_read(size) {
 		/*
-		 * When untransformed data is written into the Writable stream, it is transformed straight
-		 * away, queuing up the transformed data in the Readable stream buffer. But once the buffer
-		 * is full, the Transform should delay calling the callback provided by the upstream producer
-		 * (this is the `callback` argument to `_transform`). So no more data will flow in. The
-		 * Writable side of the stream is therefore effectively paused.
-     *
-		 * When the downstream consumer reads transformed data, it pulls off the Readable streams
+		 * As data is transformed, it queues up in the Readable stream buffer. But once the buffer
+		 * is full, the Transform should delay calling the callback provided to `_transform`, so
+		 * no more data should flow in: the Writable side of the stream is therefore paused (as
+		 * long as the upstream producer honours the semantics of the `write` return value, etc.).
+		 *
+		 * When the downstream consumer reads transformed data, it pulls off the Readable stream's
 		 * buffer, and when it runs out, it calls `_read` to get more data. However, when `_read`
 		 * is called here in `InflatingTransform`, the Transform is paused because the buffer was
 		 * full. But now the Readable buffer is empty.
 		 *
 		 * Therefore, we have to emit the `ready` event **first** to allow the Transform stream to
 		 * resume and starting pushing data into the Readable stream buffer before calling the
-		 * superclass `_read` method. Otherwise, the consumer will have nothing to read.
+		 * superclass `_read` method, which will do nothing if the stream is still paused. This
+		 * may intentionally happen multiple times if the transform inflates the data to the
+		 * extent that the read buffer is filled multiple times before the Writable needs to
+		 * resume, however, if the superclass isn't called **after** the `_transform` callback
+		 * has been called, the Writable effectively won't resume at all.
 		 */
 		this.emit("ready")
 
