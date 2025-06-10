@@ -61,11 +61,7 @@ class InflatingTransform extends Transform {
 		 * may intentionally happen multiple times if the transform inflates the data to the
 		 * extent that the read buffer is filled multiple times before the Writable needs to
 		 * resume, however, if the superclass isn't called **after** the `_transform` callback
-		 * has been called, the Writable effectively won't resume at all. You may think that
-		 * a `readable` event would be emitted when the `push` occurs after the superclass
-		 * `_read`, causing the data to be read, and it will be if data is pushed asynchronously,
-		 * but if it's syncronous, it won't as we are currently in a `read` call, and it would
-		 * be a "recursive event" if it were emitted.
+		 * has been called, the Writable effectively won't resume at all.
 		 */
 		this.emit("ready")
 
