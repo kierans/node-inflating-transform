@@ -1,5 +1,8 @@
 # inflating-transform
 
+A Node.js [Transform stream][4] that handles streaming large volumes of data produced from input
+to the stream.
+
 A Transform is a Duplex stream, in that it is Readable and Writable. It therefore has two
 buffers, a write buffer and a read buffer. The write buffer holds data from calls to `write`
 and the read buffer holds data that is to be consumed by calls to `read`. Data from the
@@ -36,6 +39,8 @@ they have pushed everything they can so far.
 [1]: https://nodejs.org/docs/latest-v18.x/api/stream.html#readablepushchunk-encoding
 [2]: https://nodejs.org/docs/latest-v18.x/api/stream.html#readable_readsize
 [3]: https://nodejs.org/docs/latest-v18.x/api/stream.html#transform_transformchunk-encoding-callback
+[4]: https://nodejs.org/docs/latest-v18.x/api/stream.html#class-streamtransform
+
 ## Usage
 
 ```shell
