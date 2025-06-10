@@ -76,14 +76,13 @@ class AccountLookupStream extends InflatingTransform {
 		});
 
 		this.readyUsed = false
+		this.once("ready", () => this.readyUsed = true);
 	}
 
 	_transform(chunk, encoding, callback) {
 		const more = this.push(JSON.stringify(account(chunk)))
 
 		if (!more) {
-			this.readyUsed = true
-
 			this.once("ready", callback)
 
 			return
