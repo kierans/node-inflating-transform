@@ -3,23 +3,54 @@ const { pipeline } = require("node:stream/promises");
 
 const InflatingTransform = require("../index");
 
-const { assertThat, is } = require("hamjest");
+const {
+	assertThat,
+	is,
+	isRejectedWith,
+	allOf,
+	instanceOf,
+	hasProperty,
+	equalTo,
+	promiseThat
+} = require("hamjest");
 
 const NUM_IDS = parseInt(process.env.NUM_IDS || 10)
 
 describe("InflatingTransform", function() {
 	it("should use backpressure correctly", async function() {
-		const accountNumbers = new GeneratorStream(NUM_IDS);
-		const accountLookup = new AccountLookupStream();
-		const counter = new CountingStream();
+		const { count, readyUsed } = await newPipeline(newAccountLookupStream());
 
-		await pipeline(accountNumbers, accountLookup, counter);
+		assertThat("Not all ids processed", count, is(NUM_IDS))
+		assertThat("Backpressure not used", readyUsed, is(true))
+	});
 
-		const result = counter.count
+	it("should throw error if inflate is not implemented", async function() {
+		const result = newPipeline(newInflatingStream())
 
-		assertThat("Not all ids processed", result, is(NUM_IDS))
-		assertThat("Backpressure not used", accountLookup.readyUsed, is(true))
+		await promiseThat(result, isRejectedWith(allOf(
+			instanceOf(Error),
+			hasProperty("message", equalTo("Unimplemented"))
+		)))
 	})
+
+	it("should pass inflate via constructor prop", async function() {
+		await newPipeline(
+			newInflatingStream(inflatingTransformOptions(withInflate(inflateAccountNumber)))
+		)
+	})
+
+	it("should handle error from generator", async function() {
+		const message = "Inflation error";
+		const inflate = function*() { throw new Error(message) }
+		const result = newPipeline(
+			newInflatingStream(inflatingTransformOptions(withInflate(inflate)))
+		)
+
+		await promiseThat(result, isRejectedWith(allOf(
+			instanceOf(Error),
+			hasProperty("message", equalTo(message))
+		)));
+	});
 });
 
 class GeneratorStream extends Readable {
@@ -35,7 +66,7 @@ class GeneratorStream extends Readable {
 	_read(size) {
 		let more = true
 
-		while(more) {
+		while (more) {
 			const next = this._ids.next();
 
 			if (next.done) {
@@ -63,6 +94,12 @@ class CountingStream extends Writable {
 
 		setTimeout(callback, 10);
 	}
+
+	_final(callback) {
+		this.emit("count", this.count);
+
+		callback();
+	}
 }
 
 /*
@@ -70,25 +107,14 @@ class CountingStream extends Writable {
  */
 class AccountLookupStream extends InflatingTransform {
 	constructor() {
-		super({
-			encoding: "utf-8",
-			writableObjectMode: true
-		});
+		super(inflatingTransformOptions());
 
 		this.readyUsed = false
 		this.once("ready", () => this.readyUsed = true);
 	}
 
-	_transform(chunk, encoding, callback) {
-		const more = this.push(JSON.stringify(account(chunk)))
-
-		if (!more) {
-			this.once("ready", callback)
-
-			return
-		}
-
-		callback()
+	* _inflate(chunk, encoding) {
+		yield createAccountFromAccountNumber(chunk)
 	}
 
 	_flush(callback) {
@@ -97,6 +123,52 @@ class AccountLookupStream extends InflatingTransform {
 		callback()
 	}
 }
+
+function* inflateAccountNumber(chunk) {
+	yield createAccountFromAccountNumber(chunk)
+}
+
+// inflatingTransformOptions :: Object? -> Object
+const inflatingTransformOptions = (props) => ({
+	encoding: "utf-8",
+	writableObjectMode: true,
+	...props
+})
+
+// newPipeline :: (() -> InflatingTransform) -> Promise Error Object
+const newPipeline = async (inflatingStream) => {
+	let readyUsed = false
+
+	const generatorStream = new GeneratorStream(NUM_IDS);
+	const countingStream = new CountingStream();
+	const stream = inflatingStream();
+	stream.once("ready", () => readyUsed = true);
+
+	await pipeline(generatorStream, stream, countingStream)
+
+	return {
+		count: countingStream.count,
+		readyUsed: readyUsed
+	}
+}
+
+// newAccountLookupStream :: () -> () -> AccountLookupStream
+const newAccountLookupStream = () => () => new AccountLookupStream()
+
+// newInflatingStream :: InflatingTransformOptions? -> () -> InflatingTransform
+const newInflatingStream = (opts = inflatingTransformOptions()) =>
+	() => new InflatingTransform(opts)
+
+// withInflate :: (() -> InflatingTransform) -> Object
+const withInflate = (fn) => ({
+	inflate: fn
+})
+
+// createAccountFromAccountNumber :: String -> InflatedData String
+const createAccountFromAccountNumber = (accountNumber) => ({
+	chunk: JSON.stringify(account(accountNumber)),
+	encoding: "utf8"
+})
 
 // account :: String -> Object
 const account = (accountNumber) => ({

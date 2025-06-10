@@ -1,6 +1,31 @@
 const { Transform } = require("node:stream")
 
-/*
+/**
+ * @template {any} T
+ *
+ * @typedef {Object} InflatedData<T>
+ * @property {T} chunk - The chunk to push to the Readable stream buffer
+ * @property {BufferEncoding|undefined} encoding If the chunk is a string, then this is the encoding type. If chunk is a buffer, then this is the special value `'buffer'`. Else undefined
+ */
+
+/**
+ * @template {any} A The input chunk type
+ * @template {any} B The output chunk type
+ *
+ * @function InflatingGenerator
+ * @generator
+ * @param {A} chunk A chunk of data written to the stream
+ * @param {BufferEncoding|undefined} encoding If the chunk is a string, then this is the encoding type. If chunk is a buffer, then this is the special value `'buffer'`. Else undefined
+ * @yields {InflatedData<B>} Data to be pushed to the Readable buffer
+ */
+
+/**
+ * @typedef {Object} InflatingTransformOptions
+ * @extends TransformOptions
+ * @property {InflatingGenerator} [inflate] The generator to use to process chunks written to the stream.
+ */
+
+/**
  * A Transform is a Duplex stream, in that it is Readable and Writable. It therefore has two
  * buffers, a write buffer and a read buffer. The write buffer holds data from calls to `write`
  * and the read buffer holds data that is to be consumed by calls to `read`. Data from the
@@ -30,19 +55,49 @@ const { Transform } = require("node:stream")
  * far (indicated via the callback provided to `_transform`), will arrange for another call to
  * `_transform`.
  *
- * Subclasses, if `push` returns false, should wait for the `ready` event before pushing more
- * data. They should defer calling the callback passed to the `_transform` method until after
- * they have pushed everything they can so far.
+ * The class provides a default implementation of `_transform` which will use a generator method
+ * `*_inflate` to generate chunks of data to be pushed from a chunk that is written to the stream.
+ * Subclasses must override `*_inflate`, or provide it via the constructor option `inflate`.
+ *
+ * Subclasses can override the `_transform` implementation if necessary. However if `push`
+ * returns false, subclasses should wait for the `ready` event before pushing more data. They
+ * should defer calling the callback passed to the `_transform` method until after they have
+ * pushed everything they can so far.
  *
  * [1]: https://nodejs.org/docs/latest-v18.x/api/stream.html#readablepushchunk-encoding
  * [2]: https://nodejs.org/docs/latest-v18.x/api/stream.html#readable_readsize
  * [3]: https://nodejs.org/docs/latest-v18.x/api/stream.html#transform_transformchunk-encoding-callback
+ *
+ * @template {any} A The input chunk type
+ * @template {any} B The output chunk type
  */
 class InflatingTransform extends Transform {
+	/**
+	 * @param {InflatingTransformOptions} opts
+	 */
 	constructor(opts) {
 		super(opts)
+
+		if (opts.inflate) {
+			this._inflate = opts.inflate
+		}
 	}
 
+	/**
+	 * @override
+	 */
+	_transform(chunk, encoding, callback) {
+		try {
+			this._push(this._inflate(chunk, encoding), callback)
+		}
+		catch (e) {
+			callback(e)
+		}
+	}
+
+	/**
+	 * @override
+	 */
 	_read(size) {
 		/*
 		 * As data is transformed, it queues up in the Readable stream buffer. But once the buffer
@@ -66,6 +121,54 @@ class InflatingTransform extends Transform {
 		this.emit("ready")
 
 		super._read(size)
+	}
+
+	/**
+	 * Generator method to create data from a chunk.
+	 *
+	 * The default implementation throws an Error.
+	 *
+	 * @param {A} chunk - The chunk to process
+	 * @param encoding {BufferEncoding|undefined} If the chunk is a string, then this is the encoding type. If chunk is a buffer, then this is the special value `'buffer'`. Else undefined
+	 * @yields {InflatedData<B>} A chunk of data
+	 */
+	*_inflate(chunk, encoding) {
+		throw new Error("Unimplemented")
+	}
+
+	/**
+	 * Pushes values from a generator to the Readable stream.
+	 *
+	 * `_push` obeys the rules of backpressure, in that, if the Readable buffer is full, `_push`
+	 * will wait for a `ready` event before continuing.
+	 *
+	 * @param {Generator<B>} generator
+	 * @param {TransformCallback} callback
+	 * @private
+	 */
+	_push(generator, callback) {
+		try {
+			let next, more = true;
+			do {
+				next = generator.next()
+
+				if (next.value !== undefined) {
+					more = this.push(next.value.chunk, next.value.encoding)
+				}
+			}
+			while (!next.done && more)
+
+			if (!more) {
+				this.once("ready", () => this._push(generator, callback))
+
+				return
+			}
+
+			callback()
+		}
+		catch (e) {
+			callback(e)
+		}
 	}
 }
 
