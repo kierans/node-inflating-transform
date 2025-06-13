@@ -32,9 +32,14 @@ method. The superclass method, if the transform logic has completed what it has 
 far (indicated via the callback provided to `_transform`), will arrange for another call to
 `_transform`.
 
-Subclasses, if `push` returns false, should wait for the `ready` event before pushing more
-data. They should defer calling the callback passed to the `_transform` method until after
-they have pushed everything they can so far.
+The class provides a default implementation of `_transform` which will use a generator method
+`*_inflate` to generate chunks of data to be pushed from a chunk that is written to the stream.
+Subclasses must override `*_inflate`, or provide it via the constructor option `inflate`.
+
+Subclasses can override the `_transform` implementation if necessary. However, if `push`
+returns false, subclasses should wait for the `ready` event before pushing more data. They
+should defer calling the callback passed to the `_transform` method until after they have
+pushed everything they can so far.
 
 [1]: https://nodejs.org/docs/latest-v18.x/api/stream.html#readablepushchunk-encoding
 [2]: https://nodejs.org/docs/latest-v18.x/api/stream.html#readable_readsize
