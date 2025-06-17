@@ -143,10 +143,10 @@ class InflatingTransform extends Transform {
 		 *
 		 * Therefore, we have to emit the `ready` event **first** to allow the Transform stream to
 		 * resume and starting pushing data into the Readable stream buffer before calling the
-		 * superclass `_read` method, which will do nothing if the stream is still paused. This
+		 * superclass `_read` method. Which will do nothing if the stream is still paused. This
 		 * may intentionally happen multiple times if the transform inflates the data to the
 		 * extent that the read buffer is filled multiple times before the Writable needs to
-		 * resume, however, if the superclass isn't called **after** the `_transform` callback
+		 * resume. However, if the superclass isn't called **after** the `_transform` callback
 		 * has been called, the Writable effectively won't resume at all.
 		 */
 		this.emit("ready")
