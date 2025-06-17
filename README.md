@@ -41,6 +41,12 @@ returns false, subclasses should wait for the `ready` event before pushing more 
 should defer calling the callback passed to the `_transform` method until after they have
 pushed everything they can so far.
 
+To accommodate streams that need to push final chunks of data when flushed, the class
+provides a default implementation of `_flush`. The method will use a generator method
+`*_burst` to generate additional chunks of data to be pushed to the Readable stream.
+The default implementation of `*_burst` simply yields `null`. Subclasses may override
+`*_burst`, or provide it via the constructor option `burst`.
+
 [1]: https://nodejs.org/docs/latest-v18.x/api/stream.html#readablepushchunk-encoding
 [2]: https://nodejs.org/docs/latest-v18.x/api/stream.html#readable_readsize
 [3]: https://nodejs.org/docs/latest-v18.x/api/stream.html#transform_transformchunk-encoding-callback

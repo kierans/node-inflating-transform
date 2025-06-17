@@ -51,6 +51,22 @@ describe("InflatingTransform", function() {
 			hasProperty("message", equalTo(message))
 		)));
 	});
+
+	it("should handle error when flushing", async function() {
+		const message = "Flush error";
+		const burst = function*() { throw new Error(message) }
+		const result = newPipeline(
+			newInflatingStream(inflatingTransformOptions(withProps(
+				withInflate(inflateAccountNumber),
+				withBurst(burst)
+			)))
+		)
+
+		await promiseThat(result, isRejectedWith(allOf(
+			instanceOf(Error),
+			hasProperty("message", equalTo(message))
+		)));
+	});
 });
 
 class GeneratorStream extends Readable {
@@ -116,12 +132,6 @@ class AccountLookupStream extends InflatingTransform {
 	* _inflate(chunk, encoding) {
 		yield createAccountFromAccountNumber(chunk)
 	}
-
-	_flush(callback) {
-		this.push(null)
-
-		callback()
-	}
 }
 
 function* inflateAccountNumber(chunk) {
@@ -159,10 +169,22 @@ const newAccountLookupStream = () => () => new AccountLookupStream()
 const newInflatingStream = (opts = inflatingTransformOptions()) =>
 	() => new InflatingTransform(opts)
 
-// withInflate :: (() -> InflatingTransform) -> Object
+// withBurst :: InflatingGenerator -> Object
+const withBurst = (fn) => ({
+	burst: fn
+})
+
+// withInflate :: BurstingGenerator -> Object
 const withInflate = (fn) => ({
 	inflate: fn
 })
+
+// withProps :: Object... -> Object
+const withProps = (...props) =>
+	props.reduce(
+		(acc, prop) => Object.assign(acc, prop),
+		{}
+	)
 
 // createAccountFromAccountNumber :: String -> InflatedData String
 const createAccountFromAccountNumber = (accountNumber) => ({

@@ -20,9 +20,18 @@ const { Transform } = require("node:stream")
  */
 
 /**
+ * @template {any} B The output chunk type
+ *
+ * @function BurstingGenerator
+ * @generator
+ * @yields {InflatedData<B>|null} Data to be pushed to the Readable buffer. Should yield `null` to indicate that the stream is finished.
+ */
+
+/**
  * @typedef {Object} InflatingTransformOptions
  * @extends TransformOptions
  * @property {InflatingGenerator} [inflate] The generator to use to process chunks written to the stream.
+ * @property {BurstingGenerator} [burst] The generator to use to when the stream is flushed.
  */
 
 /**
@@ -64,6 +73,12 @@ const { Transform } = require("node:stream")
  * should defer calling the callback passed to the `_transform` method until after they have
  * pushed everything they can so far.
  *
+ * To accommodate streams that need to push final chunks of data when flushed, the class
+ * provides a default implementation of `_flush`. The method will use a generator method
+ * `*_burst` to generate additional chunks of data to be pushed to the Readable stream.
+ * The default implementation of `*_burst` simply yields `null`. Subclasses may override
+ * `*_burst`, or provide it via the constructor option `burst`.
+ *
  * [1]: https://nodejs.org/docs/latest-v18.x/api/stream.html#readablepushchunk-encoding
  * [2]: https://nodejs.org/docs/latest-v18.x/api/stream.html#readable_readsize
  * [3]: https://nodejs.org/docs/latest-v18.x/api/stream.html#transform_transformchunk-encoding-callback
@@ -81,6 +96,10 @@ class InflatingTransform extends Transform {
 		if (opts.inflate) {
 			this._inflate = opts.inflate
 		}
+
+		if (opts.burst) {
+			this._burst = opts.burst
+		}
 	}
 
 	/**
@@ -89,6 +108,18 @@ class InflatingTransform extends Transform {
 	_transform(chunk, encoding, callback) {
 		try {
 			this._push(this._inflate(chunk, encoding), callback)
+		}
+		catch (e) {
+			callback(e)
+		}
+	}
+
+	/**
+	 * @override
+	 */
+	_flush(callback) {
+		try {
+			this._push(this._burst(), callback)
 		}
 		catch (e) {
 			callback(e)
@@ -132,8 +163,20 @@ class InflatingTransform extends Transform {
 	 * @param encoding {BufferEncoding|undefined} If the chunk is a string, then this is the encoding type. If chunk is a buffer, then this is the special value `'buffer'`. Else undefined
 	 * @yields {InflatedData<B>} A chunk of data
 	 */
+	// noinspection JSUnusedLocalSymbols
 	*_inflate(chunk, encoding) {
 		throw new Error("Unimplemented")
+	}
+
+	/**
+	 * Generator method that is called when the Transform stream is flushed.
+	 *
+	 * By default, yields null.
+	 *
+	 * @yields {InflatedData<B>|null} A chunk of data
+	 */
+	*_burst() {
+		yield null
 	}
 
 	/**
@@ -142,23 +185,25 @@ class InflatingTransform extends Transform {
 	 * `_push` obeys the rules of backpressure, in that, if the Readable buffer is full, `_push`
 	 * will wait for a `ready` event before continuing.
 	 *
-	 * @param {Generator<B>} generator
+	 * @param {Generator<B|null>} generator
 	 * @param {TransformCallback} callback
 	 * @private
 	 */
 	_push(generator, callback) {
 		try {
-			let next, more = true;
-			do {
-				next = generator.next()
+			let isDone, bufferStatus = ReadableBufferStatus.NOT_FULL;
 
-				if (next.value !== undefined) {
-					more = this.push(next.value.chunk, next.value.encoding)
+			do {
+				const next = generator.next()
+				isDone = next.done
+
+				if (!isDone) {
+					bufferStatus = this._pushValue(next.value)
 				}
 			}
-			while (!next.done && more)
+			while (!isDone && isNotFull(bufferStatus))
 
-			if (!more) {
+			if (isFull(bufferStatus)) {
 				this.once("ready", () => this._push(generator, callback))
 
 				return
@@ -170,6 +215,45 @@ class InflatingTransform extends Transform {
 			callback(e)
 		}
 	}
+
+	/**
+	 * Pushes a single value to the Readable stream.
+	 *
+	 * @param {InflatedData<B>|null} value
+	 * @returns {ReadableBufferStatus}
+	 * @private
+	 */
+	_pushValue(value) {
+		if (value === null) {
+			this.push(null);
+
+			return ReadableBufferStatus.FINISHED
+		}
+		else {
+			const more = this.push(value.chunk, value.encoding);
+
+			return more ? ReadableBufferStatus.NOT_FULL : ReadableBufferStatus.FULL
+		}
+	}
 }
+
+/**
+ * Represents the status of the Readable stream buffer.
+ *
+ * @enum {string}
+ * @private
+ * @readonly
+ */
+const ReadableBufferStatus = {
+	NOT_FULL: "NOT_FULL",
+	FULL: "FULL",
+	FINISHED: "FINISHED"
+}
+
+// isFull :: ReadableBufferStatus -> Boolean
+const isFull = (status) => status === ReadableBufferStatus.FULL
+
+// isNotFull :: ReadableBufferStatus -> Boolean
+const isNotFull = (status) => status === ReadableBufferStatus.NOT_FULL
 
 module.exports = InflatingTransform
