@@ -61,7 +61,27 @@ $ npm install inflating-transform
 ```javascript
 const InflatingTransform = require("inflating-transform");
 
-const stream = new InflatingTransform({ 
+let stream;
+
+// use props to provide generators to object
+stream = new InflatingTransform({
+  inflate: function*(chunk, encoding) { yield doSomethingWithChunk(chunk) },
+  burst: function*() { yield doSomeFinalWork() }
+})
+
+// use classical OO inheritance
+class DoSomethingTransform extends InflatingTransform {
+  *_inflate(chunk, encoding) {
+    yield this.doSomethingWithChunk(chunk)
+  }
+
+  *_burst() {
+    yield this.doSomeFinalWork()
+  }
+}
+
+// use stream overriding transform and flush behaviour
+stream = new InflatingTransform({ 
   transform(chunk, encoding, callback) {
     const more = this.push(doSomethingWithChunk(chunk))
     
