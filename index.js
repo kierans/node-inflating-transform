@@ -106,24 +106,14 @@ class InflatingTransform extends Transform {
 	 * @override
 	 */
 	_transform(chunk, encoding, callback) {
-		try {
-			this._push(this._inflate(chunk, encoding), callback)
-		}
-		catch (e) {
-			callback(e)
-		}
+		this._pushWithGenerator(() => this._inflate(chunk, encoding), callback)
 	}
 
 	/**
 	 * @override
 	 */
 	_flush(callback) {
-		try {
-			this._push(this._burst(), callback)
-		}
-		catch (e) {
-			callback(e)
-		}
+		this._pushWithGenerator(() => this._burst(), callback)
 	}
 
 	/**
@@ -182,6 +172,31 @@ class InflatingTransform extends Transform {
 	/**
 	 * Pushes values from a generator to the Readable stream.
 	 *
+	 * Handles any errors thrown when creating a generator.
+	 *
+	 * @param {() => Generator} factory Creates a generator
+	 * @param {TransformCallback} callback
+	 * @private
+	 */
+	_pushWithGenerator(factory, callback) {
+		let generator;
+
+		try {
+			// we only want to catch errors thrown when creating the generator
+			generator = factory();
+		}
+		catch (e) {
+			return callback(e)
+		}
+
+		this._push(generator, callback)
+	}
+
+	/**
+	 * Pushes values from a generator to the Readable stream.
+	 *
+	 * Handles any errors thrown when the generator yields a value.
+	 *
 	 * `_push` obeys the rules of backpressure, in that, if the Readable buffer is full, `_push`
 	 * will wait for a `ready` event before continuing.
 	 *
@@ -190,9 +205,9 @@ class InflatingTransform extends Transform {
 	 * @private
 	 */
 	_push(generator, callback) {
-		try {
-			let isDone, bufferStatus = ReadableBufferStatus.NOT_FULL;
+		let isDone, bufferStatus = ReadableBufferStatus.NOT_FULL;
 
+		try {
 			do {
 				const next = generator.next()
 				isDone = next.done
@@ -202,17 +217,17 @@ class InflatingTransform extends Transform {
 				}
 			}
 			while (!isDone && isNotFull(bufferStatus))
-
-			if (isFull(bufferStatus)) {
-				this.once("ready", () => this._push(generator, callback))
-
-				return
-			}
-
-			callback()
 		}
 		catch (e) {
-			callback(e)
+			return callback(e)
+		}
+
+		// invoke the callback outside the try/catch so that errors aren't swallowed.
+		if (isFull(bufferStatus)) {
+			this.once("ready", () => this._push(generator, callback))
+		}
+		else {
+			callback()
 		}
 	}
 

@@ -11,7 +11,8 @@ const {
 	instanceOf,
 	hasProperty,
 	equalTo,
-	promiseThat
+	promiseThat,
+	throws
 } = require("hamjest");
 
 const NUM_IDS = parseInt(process.env.NUM_IDS || 10)
@@ -65,6 +66,38 @@ describe("InflatingTransform", function() {
 			hasProperty("message", equalTo(message))
 		)));
 	});
+
+	it("should not swallow error thrown in callback when inflating", function() {
+		const message = "Error in transform callback"
+		const stream = newInflatingStream(inflatingTransformOptions(withInflate(inflateAccountNumber)))
+		const callback = errorCallback(message);
+
+		assertThat(
+			() => stream._transform("1", "utf-8", callback.callback),
+			throws(allOf(
+				instanceOf(Error),
+				hasProperty("message", equalTo(message))
+			))
+		)
+
+		assertThat("Callback invoked too many times", callback.timesInvoked(), is(1))
+	})
+
+	it("should not swallow error thrown in callback when flushing", function() {
+		const message = "Error in flush callback"
+		const stream = newInflatingStream(inflatingTransformOptions(withInflate(inflateAccountNumber)))
+		const callback = errorCallback(message);
+
+		assertThat(
+			() => stream._flush(callback.callback),
+			throws(allOf(
+				instanceOf(Error),
+				hasProperty("message", equalTo(message))
+			))
+		)
+
+		assertThat("Callback invoked too many times", callback.timesInvoked(), is(1))
+	})
 });
 
 class GeneratorStream extends Readable {
@@ -166,8 +199,17 @@ const newAccountLookupStream = () => new AccountLookupStream()
 const newInflatingStream = (opts = inflatingTransformOptions()) =>
 	new InflatingTransform(opts)
 
-const errorCallback = (message) => () => {
-	throw new Error(message)
+const errorCallback = (message) => {
+	let timesInvoked = 0
+
+	return ({
+		timesInvoked: () => timesInvoked,
+		callback: () => {
+			timesInvoked++
+
+			throw new Error(message)
+		}
+	});
 }
 
 // errorGenerator :: String -> Generator
