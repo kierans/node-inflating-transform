@@ -39,11 +39,10 @@ describe("InflatingTransform", function() {
 		)
 	})
 
-	it("should handle error from generator", async function() {
+	it("should handle error from generator when inflating", async function() {
 		const message = "Inflation error";
-		const inflate = function*() { throw new Error(message) }
 		const result = newPipeline(
-			newInflatingStream(inflatingTransformOptions(withInflate(inflate)))
+			newInflatingStream(inflatingTransformOptions(withInflate(errorGenerator(message))))
 		)
 
 		await promiseThat(result, isRejectedWith(allOf(
@@ -52,13 +51,12 @@ describe("InflatingTransform", function() {
 		)));
 	});
 
-	it("should handle error when flushing", async function() {
+	it("should handle error from generator when flushing", async function() {
 		const message = "Flush error";
-		const burst = function*() { throw new Error(message) }
 		const result = newPipeline(
 			newInflatingStream(inflatingTransformOptions(withProps(
 				withInflate(inflateAccountNumber),
-				withBurst(burst)
+				withBurst(errorGenerator(message))
 			)))
 		)
 
@@ -145,16 +143,15 @@ const inflatingTransformOptions = (props) => ({
 	...props
 })
 
-// newPipeline :: (() -> InflatingTransform) -> Promise Error Object
+// newPipeline :: InflatingTransform -> Promise Error Object
 const newPipeline = async (inflatingStream) => {
 	let readyUsed = false
 
 	const generatorStream = new GeneratorStream(NUM_IDS);
 	const countingStream = new CountingStream();
-	const stream = inflatingStream();
-	stream.once("ready", () => readyUsed = true);
+	inflatingStream.once("ready", () => readyUsed = true);
 
-	await pipeline(generatorStream, stream, countingStream)
+	await pipeline(generatorStream, inflatingStream, countingStream)
 
 	return {
 		count: countingStream.count,
@@ -162,12 +159,21 @@ const newPipeline = async (inflatingStream) => {
 	}
 }
 
-// newAccountLookupStream :: () -> () -> AccountLookupStream
-const newAccountLookupStream = () => () => new AccountLookupStream()
+// newAccountLookupStream :: () -> AccountLookupStream
+const newAccountLookupStream = () => new AccountLookupStream()
 
-// newInflatingStream :: InflatingTransformOptions? -> () -> InflatingTransform
+// newInflatingStream :: InflatingTransformOptions? -> InflatingTransform
 const newInflatingStream = (opts = inflatingTransformOptions()) =>
-	() => new InflatingTransform(opts)
+	new InflatingTransform(opts)
+
+const errorCallback = (message) => () => {
+	throw new Error(message)
+}
+
+// errorGenerator :: String -> Generator
+const errorGenerator = (message) => function*() {
+	throw new Error(message)
+}
 
 // withBurst :: InflatingGenerator -> Object
 const withBurst = (fn) => ({
