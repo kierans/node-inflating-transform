@@ -28,10 +28,7 @@ describe("InflatingTransform", function() {
 	it("should throw error if inflate is not implemented", async function() {
 		const result = newPipeline(newInflatingStream())
 
-		await promiseThat(result, isRejectedWith(allOf(
-			instanceOf(Error),
-			hasProperty("message", equalTo("Unimplemented"))
-		)))
+		await promiseThat(result, isRejectedWith(errorMatcher("Unimplemented")))
 	})
 
 	it("should pass inflate via constructor prop", async function() {
@@ -46,10 +43,7 @@ describe("InflatingTransform", function() {
 			newInflatingStream(inflatingTransformOptions(withInflate(errorGenerator(message))))
 		)
 
-		await promiseThat(result, isRejectedWith(allOf(
-			instanceOf(Error),
-			hasProperty("message", equalTo(message))
-		)));
+		await promiseThat(result, isRejectedWith(errorMatcher(message)));
 	});
 
 	it("should handle error from generator when flushing", async function() {
@@ -61,10 +55,7 @@ describe("InflatingTransform", function() {
 			)))
 		)
 
-		await promiseThat(result, isRejectedWith(allOf(
-			instanceOf(Error),
-			hasProperty("message", equalTo(message))
-		)));
+		await promiseThat(result, isRejectedWith(errorMatcher(message)));
 	});
 
 	it("should not swallow error thrown in callback when inflating", function() {
@@ -74,10 +65,7 @@ describe("InflatingTransform", function() {
 
 		assertThat(
 			() => stream._transform("1", "utf-8", callback.callback),
-			throws(allOf(
-				instanceOf(Error),
-				hasProperty("message", equalTo(message))
-			))
+			throws(errorMatcher(message))
 		)
 
 		assertThat("Callback invoked too many times", callback.timesInvoked(), is(1))
@@ -90,10 +78,7 @@ describe("InflatingTransform", function() {
 
 		assertThat(
 			() => stream._flush(callback.callback),
-			throws(allOf(
-				instanceOf(Error),
-				hasProperty("message", equalTo(message))
-			))
+			throws(errorMatcher(message))
 		)
 
 		assertThat("Callback invoked too many times", callback.timesInvoked(), is(1))
@@ -284,3 +269,10 @@ const sequenceGenerator = (start, num) => {
 		}
 	});
 }
+
+// errorMatcher :: String -> Matcher
+const errorMatcher = (message) =>
+	allOf(
+		instanceOf(Error),
+		hasProperty("message", equalTo(message))
+	)
