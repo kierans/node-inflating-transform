@@ -16,7 +16,7 @@ const { Transform } = require("node:stream")
  * @generator
  * @param {A} chunk A chunk of data written to the stream
  * @param {BufferEncoding|undefined} encoding If the chunk is a string, then this is the encoding type. If chunk is a buffer, then this is the special value `'buffer'`. Else undefined
- * @yields {InflatedData<B>} Data to be pushed to the Readable buffer
+ * @yields {InflatedData<B>|Promise<InflatedData<B>>} Data to be pushed to the Readable buffer
  */
 
 /**
@@ -24,7 +24,7 @@ const { Transform } = require("node:stream")
  *
  * @function BurstingGenerator
  * @generator
- * @yields {InflatedData<B>|null} Data to be pushed to the Readable buffer. Should yield `null` to indicate that the stream is finished.
+ * @yields {InflatedData<B>|Promise<InflatedData<B>>|null} Data to be pushed to the Readable buffer. Should yield `null` to indicate that the stream is finished.
  */
 
 /**
@@ -32,6 +32,11 @@ const { Transform } = require("node:stream")
  * @extends TransformOptions
  * @property {InflatingGenerator} [inflate] The generator to use to process chunks written to the stream.
  * @property {BurstingGenerator} [burst] The generator to use to when the stream is flushed.
+ */
+
+/**
+ * @typedef {Function} NextFunction A function which indicates what to do next when trampolining
+ * @returns {NextFunction|null}
  */
 
 /**
@@ -67,6 +72,11 @@ const { Transform } = require("node:stream")
  * The class provides a default implementation of `_transform` which will use a generator method
  * `*_inflate` to generate chunks of data to be pushed from a chunk that is written to the stream.
  * Subclasses must override `*_inflate`, or provide it via the constructor option `inflate`.
+ *
+ * To accommodate generators that need to perform asynchronous work to transform a chunk,
+ * generator methods in this class can yield Promises. The class will wait for the Promise to
+ * resolve before pushing the value. If the Promise rejects, the error will be passed to the
+ * transform callback function.
  *
  * Subclasses can override the `_transform` implementation if necessary. However, if `push`
  * returns false, subclasses should wait for the `ready` event before pushing more data. They
@@ -151,7 +161,7 @@ class InflatingTransform extends Transform {
 	 *
 	 * @param {A} chunk - The chunk to process
 	 * @param encoding {BufferEncoding|undefined} If the chunk is a string, then this is the encoding type. If chunk is a buffer, then this is the special value `'buffer'`. Else undefined
-	 * @yields {InflatedData<B>} A chunk of data
+	 * @yields {InflatedData<B>|Promise<InflatedData<B>>} A chunk of data
 	 */
 	// noinspection JSUnusedLocalSymbols
 	*_inflate(chunk, encoding) {
@@ -163,7 +173,7 @@ class InflatingTransform extends Transform {
 	 *
 	 * By default, yields null.
 	 *
-	 * @yields {InflatedData<B>|null} A chunk of data
+	 * @yields {InflatedData<B>|Promise<InflatedData<B>>|null} A chunk of data
 	 */
 	*_burst() {
 		yield null
@@ -174,7 +184,7 @@ class InflatingTransform extends Transform {
 	 *
 	 * Handles any errors thrown when creating a generator.
 	 *
-	 * @param {() => Generator} factory Creates a generator
+	 * @param {() => Generator<A, B|Promise<InflatedData<B>>|null>} factory Creates a generator
 	 * @param {TransformCallback} callback
 	 * @private
 	 */
@@ -189,46 +199,103 @@ class InflatingTransform extends Transform {
 			return callback(e)
 		}
 
-		this._push(generator, callback)
+		this._pushValues(generator, callback)
 	}
 
 	/**
 	 * Pushes values from a generator to the Readable stream.
 	 *
-	 * Handles any errors thrown when the generator yields a value.
+	 * Uses trampolining to avoid stack overflow with continuations.
 	 *
-	 * `_push` obeys the rules of backpressure, in that, if the Readable buffer is full, `_push`
-	 * will wait for a `ready` event before continuing.
-	 *
-	 * @param {Generator<B|null>} generator
+	 * @param {Generator<A, B|Promise<InflatedData<B>>|null>} generator
 	 * @param {TransformCallback} callback
 	 * @private
 	 */
-	_push(generator, callback) {
-		let isDone, bufferStatus = ReadableBufferStatus.NOT_FULL;
+	_pushValues(generator, callback) {
+		this._trampoline(() => this._pushNextValue(generator, callback))
+	}
+
+	/**
+	 * Invokes the generator and pushes the result.
+	 *
+	 * Handles any errors thrown when the generator yields a value.
+	 *
+	 * @param {Generator<A, B|Promise<InflatedData<B>>|null>} generator
+	 * @param {TransformCallback} callback
+	 * @return {NextFunction|null}
+	 * @private
+	 */
+	_pushNextValue(generator, callback) {
+		const next = (value) => this._pushYieldedValue(value, generator, callback);
+		const resumePushing = (next) => this._trampoline(next);
 
 		try {
-			do {
-				const next = generator.next()
-				isDone = next.done
+			const value = generator.next();
 
-				if (!isDone) {
-					bufferStatus = this._pushValue(next.value)
-				}
-			}
-			while (!isDone && isNotFull(bufferStatus))
+			return !isPromiseLike(value)
+				? next(value)
+				: () => {
+					value
+						.then(next)
+						.then(resumePushing)
+						.catch(callback)
+
+					// Break the trampoline chain when waiting for the promise to settle
+					return null;
+				};
 		}
 		catch (e) {
-			return callback(e)
+			return () => {
+				callback(e);
+
+				return null;
+			};
+		}
+	}
+
+	/**
+	 * Handles the logic of pushing a yielded value from a generator.
+	 *
+	 * @param {IteratorResult<InflatedData<B>>} result
+	 * @param {Generator<B|Promise<B>|null>} generator
+	 * @param {TransformCallback} callback
+	 * @return {NextFunction|null} Returns a function for what to do next, or null if nothing is to be done.
+	 */
+	_pushYieldedValue(result, generator, callback) {
+		const done = () => {
+			callback();
+
+			return null;
+		};
+
+		const pushNext = () =>
+			this._pushNextValue(generator, callback);
+
+		const resumePushing = () => {
+			this._pushValues(generator, callback);
+
+			return null;
+		};
+
+		if (result.done) {
+			return done;
 		}
 
-		// invoke the callback outside the try/catch so that errors aren't swallowed.
+		const bufferStatus = this._pushValue(result.value);
+
 		if (isFull(bufferStatus)) {
-			this.once("ready", () => this._push(generator, callback))
+			this.once("ready", resumePushing);
+
+			// Break the trampoline chain when waiting for a 'ready' event
+			return null;
 		}
-		else {
-			callback()
+
+		if (isNotFull(bufferStatus)) {
+			// continue pushing
+			return pushNext;
 		}
+
+		return done;
 	}
 
 	/**
@@ -248,6 +315,20 @@ class InflatingTransform extends Transform {
 			const more = this.push(value.chunk, value.encoding);
 
 			return more ? ReadableBufferStatus.NOT_FULL : ReadableBufferStatus.FULL
+		}
+	}
+
+	/**
+	 * Trampoline executor that runs a function until next returns a non-function value.
+	 *
+	 * This is because v8 doesn't support TCO.
+	 *
+	 * @param {NextFunction} next
+	 * @private
+	 */
+	_trampoline(next) {
+		while (typeof next === "function") {
+			next = next()
 		}
 	}
 }
@@ -270,5 +351,9 @@ const isFull = (status) => status === ReadableBufferStatus.FULL
 
 // isNotFull :: ReadableBufferStatus -> Boolean
 const isNotFull = (status) => status === ReadableBufferStatus.NOT_FULL
+
+// isPromiseLike :: a -> Boolean
+const isPromiseLike = (a) =>
+	typeof a === "object" && typeof a.then === "function";
 
 module.exports = InflatingTransform

@@ -25,6 +25,15 @@ describe("InflatingTransform", function() {
 		assertThat("Backpressure not used", readyUsed, is(true))
 	});
 
+	it("should handle async generator", async function() {
+		const { count, readyUsed } = await newPipeline(
+			newInflatingStream(inflatingTransformOptions(withInflate(asyncInflateAccountNumber)))
+		)
+
+		assertThat("Not all ids processed", count, is(NUM_IDS))
+		assertThat("Backpressure not used", readyUsed, is(true))
+	})
+
 	it("should throw error if inflate is not implemented", async function() {
 		const result = newPipeline(newInflatingStream())
 
@@ -150,8 +159,12 @@ class AccountLookupStream extends InflatingTransform {
 	}
 }
 
-function* inflateAccountNumber(chunk) {
-	yield createAccountFromAccountNumber(chunk)
+async function* asyncInflateAccountNumber(accountNumber) {
+	yield createAccountFromAccountNumber(accountNumber)
+}
+
+function* inflateAccountNumber(accountNumber) {
+	yield createAccountFromAccountNumber(accountNumber)
 }
 
 // inflatingTransformOptions :: Object? -> Object
