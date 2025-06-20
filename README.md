@@ -32,9 +32,20 @@ method. The superclass method, if the transform logic has completed what it has 
 far (indicated via the callback provided to `_transform`), will arrange for another call to
 `_transform`.
 
-Subclasses, if `push` returns false, should wait for the `ready` event before pushing more
-data. They should defer calling the callback passed to the `_transform` method until after
-they have pushed everything they can so far.
+The class provides a default implementation of `_transform` which will use a generator method
+`*_inflate` to generate chunks of data to be pushed from a chunk that is written to the stream.
+Subclasses must override `*_inflate`, or provide it via the constructor option `inflate`.
+
+Subclasses can override the `_transform` implementation if necessary. However, if `push`
+returns false, subclasses should wait for the `ready` event before pushing more data. They
+should defer calling the callback passed to the `_transform` method until after they have
+pushed everything they can so far.
+
+To accommodate streams that need to push final chunks of data when flushed, the class
+provides a default implementation of `_flush`. The method will use a generator method
+`*_burst` to generate additional chunks of data to be pushed to the Readable stream.
+The default implementation of `*_burst` simply yields `null`. Subclasses may override
+`*_burst`, or provide it via the constructor option `burst`.
 
 [1]: https://nodejs.org/docs/latest-v18.x/api/stream.html#readablepushchunk-encoding
 [2]: https://nodejs.org/docs/latest-v18.x/api/stream.html#readable_readsize
@@ -50,7 +61,27 @@ $ npm install inflating-transform
 ```javascript
 const InflatingTransform = require("inflating-transform");
 
-const stream = new InflatingTransform({ 
+let stream;
+
+// use props to provide generators to object
+stream = new InflatingTransform({
+  inflate: function*(chunk, encoding) { yield doSomethingWithChunk(chunk) },
+  burst: function*() { yield doSomeFinalWork() }
+})
+
+// use classical OO inheritance
+class DoSomethingTransform extends InflatingTransform {
+  *_inflate(chunk, encoding) {
+    yield this.doSomethingWithChunk(chunk)
+  }
+
+  *_burst() {
+    yield this.doSomeFinalWork()
+  }
+}
+
+// use stream overriding transform and flush behaviour
+stream = new InflatingTransform({ 
   transform(chunk, encoding, callback) {
     const more = this.push(doSomethingWithChunk(chunk))
     
