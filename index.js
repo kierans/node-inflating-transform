@@ -234,22 +234,17 @@ class InflatingTransform extends Transform {
 
 			return !isPromiseLike(value)
 				? next(value)
-				: () => {
-					value
+
+				// Return null to break the trampoline chain while waiting for the promise to settle
+				: voidToNull(() =>
+						value
 						.then(next)
 						.then(resumePushing)
 						.catch(callback)
-
-					// Break the trampoline chain when waiting for the promise to settle
-					return null;
-				};
+					)
 		}
 		catch (e) {
-			return () => {
-				callback(e);
-
-				return null;
-			};
+			return voidToNull(() => callback(e))
 		}
 	}
 
@@ -262,20 +257,12 @@ class InflatingTransform extends Transform {
 	 * @return {NextFunction|null} Returns a function for what to do next, or null if nothing is to be done.
 	 */
 	_pushYieldedValue(result, generator, callback) {
-		const done = () => {
-			callback();
-
-			return null;
-		};
+		const done = voidToNull(() => callback())
 
 		const pushNext = () =>
 			this._pushNextValue(generator, callback);
 
-		const resumePushing = () => {
-			this._pushValues(generator, callback);
-
-			return null;
-		};
+		const resumePushing = voidToNull(() => this._pushValues(generator, callback))
 
 		if (result.done) {
 			return done;
@@ -355,5 +342,12 @@ const isNotFull = (status) => status === ReadableBufferStatus.NOT_FULL
 // isPromiseLike :: a -> Boolean
 const isPromiseLike = (a) =>
 	typeof a === "object" && typeof a.then === "function";
+
+// voidToNull :: (() -> void) -> () -> null
+const voidToNull = (fn) => () => {
+	fn();
+
+	return null;
+}
 
 module.exports = InflatingTransform
