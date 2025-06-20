@@ -212,7 +212,7 @@ class InflatingTransform extends Transform {
 	 * @private
 	 */
 	_pushValues(generator, callback) {
-		this._trampoline(() => this._pushNextValue(generator, callback))
+		trampoline(() => this._pushNextValue(generator, callback))
 	}
 
 	/**
@@ -227,7 +227,7 @@ class InflatingTransform extends Transform {
 	 */
 	_pushNextValue(generator, callback) {
 		const next = (value) => this._pushYieldedValue(value, generator, callback);
-		const resumePushing = (next) => this._trampoline(next);
+		const resumePushing = (next) => trampoline(next);
 
 		try {
 			const value = generator.next();
@@ -317,19 +317,19 @@ class InflatingTransform extends Transform {
 			return more ? ReadableBufferStatus.NOT_FULL : ReadableBufferStatus.FULL
 		}
 	}
+}
 
-	/**
-	 * Trampoline executor that runs a function until next returns a non-function value.
-	 *
-	 * This is because v8 doesn't support TCO.
-	 *
-	 * @param {NextFunction} next
-	 * @private
-	 */
-	_trampoline(next) {
-		while (typeof next === "function") {
-			next = next()
-		}
+/**
+ * Trampoline executor that runs a function until next returns a non-function value.
+ *
+ * This is because v8 doesn't support TCO.
+ *
+ * @param {NextFunction} next
+ * @private
+ */
+const trampoline = (next) => {
+	while (typeof next === "function") {
+		next = next()
 	}
 }
 
