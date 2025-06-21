@@ -116,14 +116,14 @@ class InflatingTransform extends Transform {
 	 * @override
 	 */
 	_transform(chunk, encoding, callback) {
-		this._pushWithGenerator(() => this._inflate(chunk, encoding), callback)
+		this._push(() => this._inflate(chunk, encoding), callback)
 	}
 
 	/**
 	 * @override
 	 */
 	_flush(callback) {
-		this._pushWithGenerator(() => this._burst(), callback)
+		this._push(() => this._burst(), callback)
 	}
 
 	/**
@@ -188,7 +188,7 @@ class InflatingTransform extends Transform {
 	 * @param {TransformCallback} callback
 	 * @private
 	 */
-	_pushWithGenerator(factory, callback) {
+	_push(factory, callback) {
 		let generator;
 
 		try {
@@ -199,20 +199,19 @@ class InflatingTransform extends Transform {
 			return callback(e)
 		}
 
-		this._pushValues(generator, callback)
+		this._resumePushing(() => this._pushNextValue(generator, callback))
 	}
 
 	/**
-	 * Pushes values from a generator to the Readable stream.
+	 * Resumes pushing from a continuation.
 	 *
 	 * Uses trampolining to avoid stack overflow with continuations.
 	 *
-	 * @param {Generator<A, B|Promise<InflatedData<B>>|null>} generator
-	 * @param {TransformCallback} callback
+	 * @param {NextFunction} next
 	 * @private
 	 */
-	_pushValues(generator, callback) {
-		trampoline(() => this._pushNextValue(generator, callback))
+	_resumePushing(next) {
+		trampoline(next)
 	}
 
 	/**
@@ -227,7 +226,6 @@ class InflatingTransform extends Transform {
 	 */
 	_pushNextValue(generator, callback) {
 		const next = (value) => this._pushYieldedValue(value, generator, callback);
-		const resumePushing = (next) => trampoline(next);
 
 		try {
 			const value = generator.next();
@@ -239,7 +237,7 @@ class InflatingTransform extends Transform {
 				: voidToNull(() =>
 						value
 						.then(next)
-						.then(resumePushing)
+						.then((next) => this._resumePushing(next))
 						.catch(callback)
 					)
 		}
@@ -262,7 +260,7 @@ class InflatingTransform extends Transform {
 		const pushNext = () =>
 			this._pushNextValue(generator, callback);
 
-		const resumePushing = voidToNull(() => this._pushValues(generator, callback))
+		const resumePushing = voidToNull(() => this._resumePushing(pushNext))
 
 		if (result.done) {
 			return done;
