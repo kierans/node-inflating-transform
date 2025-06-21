@@ -225,7 +225,12 @@ class InflatingTransform extends Transform {
 	 * @private
 	 */
 	_pushNextValue(generator, callback) {
-		const next = (value) => this._pushYieldedValue(value, generator, callback);
+		const next = (value) =>
+			this._pushYieldedValue(
+				value,
+				() => this._pushNextValue(generator, callback),
+				voidToNull(() => callback())
+			);
 
 		try {
 			const value = generator.next();
@@ -249,27 +254,20 @@ class InflatingTransform extends Transform {
 	/**
 	 * Handles the logic of pushing a yielded value from a generator.
 	 *
-	 * @param {IteratorResult<InflatedData<B>>} result
-	 * @param {Generator<B|Promise<B>|null>} generator
-	 * @param {TransformCallback} callback
+	 * @param {IteratorResult<InflatedData<B>>} value
+	 * @param {NextFunction} next What to do next after pushing value to stream.
+	 * @param {NextFunction} done What to return if the generator is finished.
 	 * @return {NextFunction|null} Returns a function for what to do next, or null if nothing is to be done.
 	 */
-	_pushYieldedValue(result, generator, callback) {
-		const done = voidToNull(() => callback())
-
-		const pushNext = () =>
-			this._pushNextValue(generator, callback);
-
-		const resumePushing = voidToNull(() => this._resumePushing(pushNext))
-
-		if (result.done) {
+	_pushYieldedValue(value, next, done) {
+		if (value.done) {
 			return done;
 		}
 
-		const bufferStatus = this._pushValue(result.value);
+		const bufferStatus = this._pushValue(value.value);
 
 		if (isFull(bufferStatus)) {
-			this.once("ready", resumePushing);
+			this.once("ready", () => this._resumePushing(next));
 
 			// Break the trampoline chain when waiting for a 'ready' event
 			return null;
@@ -277,7 +275,7 @@ class InflatingTransform extends Transform {
 
 		if (isNotFull(bufferStatus)) {
 			// continue pushing
-			return pushNext;
+			return next;
 		}
 
 		return done;
