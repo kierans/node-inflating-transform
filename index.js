@@ -207,7 +207,7 @@ class InflatingTransform extends Transform {
 	 *
 	 * Uses trampolining to avoid stack overflow with continuations.
 	 *
-	 * @param {NextFunction} next
+	 * @param {NextFunction} next What to do next
 	 * @private
 	 */
 	_resumePushing(next) {
@@ -221,7 +221,7 @@ class InflatingTransform extends Transform {
 	 *
 	 * @param {Generator<A, B|Promise<InflatedData<B>>|null>} generator
 	 * @param {TransformCallback} callback
-	 * @return {NextFunction|null}
+	 * @return {NextFunction|null} Returns a function for what to do next, or null if nothing is to be done.
 	 * @private
 	 */
 	_pushNextValue(generator, callback) {
@@ -229,7 +229,7 @@ class InflatingTransform extends Transform {
 			this._pushYieldedValue(
 				value,
 				() => this._pushNextValue(generator, callback),
-				voidToNull(() => callback())
+				voidToNull(callback)
 			);
 
 		try {
@@ -238,7 +238,7 @@ class InflatingTransform extends Transform {
 			return !isPromiseLike(value)
 				? next(value)
 
-				// Return null to break the trampoline chain while waiting for the promise to settle
+				// Nothing to do while waiting for the promise to settle.
 				: voidToNull(() =>
 						value
 						.then(next)
@@ -269,7 +269,7 @@ class InflatingTransform extends Transform {
 		if (isFull(bufferStatus)) {
 			this.once("ready", () => this._resumePushing(next));
 
-			// Break the trampoline chain when waiting for a 'ready' event
+			// Nothing to do while waiting for a 'ready' event
 			return null;
 		}
 
@@ -278,6 +278,7 @@ class InflatingTransform extends Transform {
 			return next;
 		}
 
+		// we need to stop pushing as the stream is finished
 		return done;
 	}
 
