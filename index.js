@@ -208,10 +208,11 @@ class InflatingTransform extends Transform {
 	 * Uses trampolining to avoid stack overflow with continuations.
 	 *
 	 * @param {NextFunction} next What to do next
+	 * @return null If method is used in a continuation, signal no more work to be done.
 	 * @private
 	 */
 	_resumePushing(next) {
-		trampoline(next)
+		return trampoline(next)
 	}
 
 	/**
@@ -309,12 +310,19 @@ class InflatingTransform extends Transform {
  * This is because v8 doesn't support TCO.
  *
  * @param {NextFunction} next
+ * @return null Signal no more work to be done
  * @private
  */
 const trampoline = (next) => {
 	while (typeof next === "function") {
 		next = next()
 	}
+
+	if (next !== null) {
+		throw new Error(`Unexpected return value from continuation: ${next}`)
+	}
+
+	return null;
 }
 
 /**
