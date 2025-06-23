@@ -309,7 +309,7 @@ class InflatingTransform extends Transform {
  *
  * This is because v8 doesn't support TCO.
  *
- * @param {NextFunction} next
+ * @param {NextFunction|null} next What to do next
  * @return null Signal no more work to be done
  * @private
  */
