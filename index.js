@@ -205,8 +205,15 @@ class InflatingTransform extends Transform {
 	/**
 	 * Resumes pushing from a continuation.
 	 *
+	 * Continuations are used to encapsulate execution state about what to "do next" as data is
+	 * pushed through the stream. This allows synchronous and asynchronous work
+	 * (both with promises and events) to be done by the stream as the "next step" for pushing a
+	 * chunk of data is encapsulated into a function and executed when required. Being a
+	 * function, the execution state can be passed to and returned from other functions (methods).
+	 *
 	 * Uses trampolining to avoid stack overflow with continuations.
 	 *
+	 * @see https://en.wikipedia.org/wiki/Continuation
 	 * @param {NextFunction} next What to do next
 	 * @return null If method is used in a continuation, signal no more work to be done.
 	 * @private
