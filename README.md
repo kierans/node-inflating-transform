@@ -77,13 +77,13 @@ stream = new InflatingTransform({
 // use generators that yield promises
 stream = new InflatingTransform({
   inflate: function*(chunk, encoding) { yield Promise.resolve(doSomethingWithChunk(chunk)) },
-	burst: function*() { yield Promise.resolve(doSomeFinalWork()) }
+  burst: function*() { yield Promise.resolve(doSomeFinalWork()) }
 });
 
 // use async generators
 stream = new InflatingTransform({
-	inflate: async function*(chunk, encoding) { yield doSomethingWithChunk(chunk) },
-	burst: async function*() { yield doSomeFinalWork() }
+  inflate: async function*(chunk, encoding) { yield doSomethingWithChunk(chunk) }, 
+  burst: async function*() { yield doSomeFinalWork() }
 });
 
 // use classical OO inheritance
