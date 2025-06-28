@@ -74,9 +74,9 @@ const { Transform } = require("node:stream")
  * Subclasses must override `*_inflate`, or provide it via the constructor option `inflate`.
  *
  * To accommodate generators that need to perform asynchronous work to transform a chunk,
- * generator methods in this class can yield Promises. The class will wait for the Promise to
- * resolve before pushing the value. If the Promise rejects, the error will be passed to the
- * transform callback function.
+ * generator methods in this class can yield Promises, or an async generator can be used.
+ * The class will wait for the Promise to resolve before pushing the value. If the Promise
+ * rejects, the error will be passed to the transform callback function.
  *
  * Subclasses can override the `_transform` implementation if necessary. However, if `push`
  * returns false, subclasses should wait for the `ready` event before pushing more data. They
