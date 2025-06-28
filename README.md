@@ -37,9 +37,9 @@ The class provides a default implementation of `_transform` which will use a gen
 Subclasses must override `*_inflate`, or provide it via the constructor option `inflate`.
 
 To accommodate generators that need to perform asynchronous work to transform a chunk,
-generator methods in this class can yield Promises. The class will wait for the Promise to
-resolve before pushing the value. If the Promise rejects, the error will be passed to the
-transform callback function.
+generator methods in this class can yield Promises, or an async generator can be used.
+The class will wait for the Promise to resolve before pushing the value. If the Promise
+rejects, the error will be passed to the transform callback function.
 
 Subclasses can override the `_transform` implementation if necessary. However, if `push`
 returns false, subclasses should wait for the `ready` event before pushing more data. They
@@ -72,7 +72,19 @@ let stream;
 stream = new InflatingTransform({
   inflate: function*(chunk, encoding) { yield doSomethingWithChunk(chunk) },
   burst: function*() { yield doSomeFinalWork() }
-})
+});
+
+// use generators that yield promises
+stream = new InflatingTransform({
+  inflate: function*(chunk, encoding) { yield Promise.resolve(doSomethingWithChunk(chunk)) },
+	burst: function*() { yield Promise.resolve(doSomeFinalWork()) }
+});
+
+// use async generators
+stream = new InflatingTransform({
+	inflate: async function*(chunk, encoding) { yield doSomethingWithChunk(chunk) },
+	burst: async function*() { yield doSomeFinalWork() }
+});
 
 // use classical OO inheritance
 class DoSomethingTransform extends InflatingTransform {
@@ -84,6 +96,8 @@ class DoSomethingTransform extends InflatingTransform {
     yield this.doSomeFinalWork()
   }
 }
+
+stream = new DoSomethingTransform();
 
 // use stream overriding transform and flush behaviour
 stream = new InflatingTransform({ 
@@ -102,7 +116,7 @@ stream = new InflatingTransform({
      
     callback()
   }
-})
+});
 ```
 
 ## Tests
