@@ -233,21 +233,32 @@ class InflatingTransform extends Transform {
 	 * @private
 	 */
 	_pushNextValue(generator, callback) {
+		// next :: InflatedData<B> -> NextFunction|null
 		const next = (value) => this._pushYieldedValue(value, generator, callback);
 
+		// promiseToPush :: Promise<IteratorResult<InflatedData<B>>> -> null
+		const promiseToPush = (promise) =>
+			voidToNull(() =>
+				promise
+				.then(next)
+				.then((next) => this._resumePushing(next))
+				.catch(callback)
+			)
+
 		try {
-			const value = generator.next();
+			const result = generator.next();
 
-			return !isPromiseLike(value)
-				? next(value)
+			// if the generator is an AsyncGenerator<B>, the result will be a Promise<IteratorResult<B>>
+			if (isPromiseLike(result)) {
+				return promiseToPush(result);
+			}
 
-				// Nothing to do while waiting for the promise to settle.
-				: voidToNull(() =>
-						value
-						.then(next)
-						.then((next) => this._resumePushing(next))
-						.catch(callback)
-					)
+			// if the generator is a Generator<Promise<B>>, the result will be a IteratorResult<Promise<B>>
+			if (isPromiseLike(result.value)) {
+				return promiseToPush(result.value.then(toIteratorResult(result.done)));
+			}
+
+			return next(result);
 		}
 		catch (e) {
 			return voidToNull(() => callback(e))
@@ -347,7 +358,13 @@ const isNotFull = (status) => status === ReadableBufferStatus.NOT_FULL
 
 // isPromiseLike :: a -> Boolean
 const isPromiseLike = (a) =>
-	typeof a === "object" && typeof a.then === "function";
+	a !== null && typeof a === "object" && typeof a.then === "function";
+
+// toIteratorResult :: Boolean -> a -> IteratorResult a
+const toIteratorResult = (done) => (value) => ({
+	done,
+	value
+})
 
 // voidToNull :: (() -> void) -> () -> null
 const voidToNull = (fn) => () => {
