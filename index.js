@@ -233,12 +233,7 @@ class InflatingTransform extends Transform {
 	 * @private
 	 */
 	_pushNextValue(generator, callback) {
-		const next = (value) =>
-			this._pushYieldedValue(
-				value,
-				() => this._pushNextValue(generator, callback),
-				voidToNull(callback)
-			);
+		const next = (value) => this._pushYieldedValue(value, generator, callback);
 
 		try {
 			const value = generator.next();
@@ -263,11 +258,14 @@ class InflatingTransform extends Transform {
 	 * Handles the logic of pushing a yielded value from a generator.
 	 *
 	 * @param {IteratorResult<InflatedData<B>>} value
-	 * @param {NextFunction} next What to do next after pushing value to stream.
-	 * @param {NextFunction} done What to return if the generator is finished.
+	 * @param {Generator<A, B|Promise<InflatedData<B>>|null>} generator
+	 * @param {TransformCallback} callback
 	 * @return {NextFunction|null} Returns a function for what to do next, or null if nothing is to be done.
 	 */
-	_pushYieldedValue(value, next, done) {
+	_pushYieldedValue(value, generator, callback) {
+		const done = voidToNull(callback);
+		const next = () => this._pushNextValue(generator, callback)
+
 		if (value.done) {
 			return done;
 		}
