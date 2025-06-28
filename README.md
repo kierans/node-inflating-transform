@@ -36,6 +36,11 @@ The class provides a default implementation of `_transform` which will use a gen
 `*_inflate` to generate chunks of data to be pushed from a chunk that is written to the stream.
 Subclasses must override `*_inflate`, or provide it via the constructor option `inflate`.
 
+To accommodate generators that need to perform asynchronous work to transform a chunk,
+generator methods in this class can yield Promises. The class will wait for the Promise to
+resolve before pushing the value. If the Promise rejects, the error will be passed to the
+transform callback function.
+
 Subclasses can override the `_transform` implementation if necessary. However, if `push`
 returns false, subclasses should wait for the `ready` event before pushing more data. They
 should defer calling the callback passed to the `_transform` method until after they have
