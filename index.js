@@ -272,7 +272,7 @@ class InflatingTransform extends Transform {
 			return done;
 		}
 
-		const bufferStatus = this._pushValue(value.value);
+		const bufferStatus = this._pushInflatedData(value.value);
 
 		if (isFull(bufferStatus)) {
 			this.once("ready", () => this._resumePushing(next));
@@ -293,18 +293,18 @@ class InflatingTransform extends Transform {
 	/**
 	 * Pushes a single value to the Readable stream.
 	 *
-	 * @param {InflatedData<B>|null} value
+	 * @param {InflatedData<B>|null} data
 	 * @returns {ReadableBufferStatus}
 	 * @private
 	 */
-	_pushValue(value) {
-		if (value === null) {
+	_pushInflatedData(data) {
+		if (data === null) {
 			this.push(null);
 
 			return ReadableBufferStatus.FINISHED
 		}
 		else {
-			const more = this.push(value.chunk, value.encoding);
+			const more = this.push(data.chunk, data.encoding);
 
 			return more ? ReadableBufferStatus.NOT_FULL : ReadableBufferStatus.FULL
 		}
