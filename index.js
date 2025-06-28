@@ -325,10 +325,6 @@ const trampoline = (next) => {
 		next = next()
 	}
 
-	if (next !== null) {
-		throw new Error(`Unexpected return value from continuation: ${next}`)
-	}
-
 	return null;
 }
 
