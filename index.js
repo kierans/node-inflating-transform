@@ -184,7 +184,7 @@ class InflatingTransform extends Transform {
 	 *
 	 * Handles any errors thrown when creating a generator.
 	 *
-	 * @param {() => Generator<A, B|Promise<InflatedData<B>>|null>} factory Creates a generator
+	 * @param {() => Generator<A, InflatedData<B>|Promise<InflatedData<B>>|AsyncGenerator<A, InflatedData<B>>|null>} factory Creates a generator
 	 * @param {TransformCallback} callback
 	 * @private
 	 */
@@ -227,7 +227,7 @@ class InflatingTransform extends Transform {
 	 *
 	 * Handles any errors thrown when the generator yields a value.
 	 *
-	 * @param {Generator<A, B|Promise<InflatedData<B>>|null>} generator
+	 * @param {Generator<A, InflatedData<B>|Promise<InflatedData<B>>|AsyncGenerator<A, InflatedData<B>>|null>} generator
 	 * @param {TransformCallback} callback
 	 * @return {NextFunction|null} Returns a function for what to do next, or null if nothing is to be done.
 	 * @private
@@ -269,7 +269,7 @@ class InflatingTransform extends Transform {
 	 * Handles the logic of pushing a yielded value from a generator.
 	 *
 	 * @param {IteratorResult<InflatedData<B>>} value
-	 * @param {Generator<A, B|Promise<InflatedData<B>>|null>} generator
+	 * @param {Generator<A, InflatedData<B>|Promise<InflatedData<B>>|AsyncGenerator<A, InflatedData<B>>|null>} generator
 	 * @param {TransformCallback} callback
 	 * @return {NextFunction|null} Returns a function for what to do next, or null if nothing is to be done.
 	 */
