@@ -1,6 +1,6 @@
 {
   "name": "inflating-transform",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Transform stream that handles large volumes of data",
   "main": "index.js",
   "scripts": {
