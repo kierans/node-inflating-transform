@@ -18,97 +18,102 @@ const {
 const NUM_IDS = parseInt(process.env.NUM_IDS || 10)
 
 describe("InflatingTransform", function() {
-	it("should use backpressure correctly", async function() {
-		const { count, readyUsed } = await newPipeline(newAccountLookupStream());
+	describe("streaming", function() {
+		const tests = [
+			{
+				desc: "should handle synchronous streaming",
+				factory: () => newPipeline(newAccountLookupStream())
+			},
+			{
+				desc: "should handle generator which yields Promises",
+				factory: () => newPipeline(
+					newInflatingStream(inflatingTransformOptions(withInflate(function* (accountNumber) {
+						yield Promise.resolve(createAccountFromAccountNumber(accountNumber))
+					})))
+				)
+			},
+			{
+				desc: "should handle async generator",
+				factory: () => newPipeline(
+					newInflatingStream(inflatingTransformOptions(withInflate(async function* (accountNumber) {
+						yield createAccountFromAccountNumber(accountNumber)
+					})))
+				)
+			}
+		]
 
-		assertThat("Not all ids processed", count, is(NUM_IDS))
-		assertThat("Backpressure not used", readyUsed, is(true))
+		tests.forEach((test) => {
+			it(test.desc, async function() {
+				const { count, readyUsed } = await test.factory();
+
+				assertThat("Not all ids processed", count, is(NUM_IDS))
+				assertThat("Backpressure not used", readyUsed, is(true))
+			})
+		});
 	});
 
-	it("should handle generator which yields Promises", async function() {
-		function* asyncInflateAccountNumber(accountNumber) {
-			yield Promise.resolve(createAccountFromAccountNumber(accountNumber))
-		}
+	describe("construction", function() {
+		it("should throw error if inflate is not implemented", async function() {
+			const result = newPipeline(newInflatingStream())
 
-		const { count, readyUsed } = await newPipeline(
-			newInflatingStream(inflatingTransformOptions(withInflate(asyncInflateAccountNumber)))
-		)
+			await promiseThat(result, isRejectedWith(errorMatcher("Unimplemented")))
+		});
 
-		assertThat("Not all ids processed", count, is(NUM_IDS))
-		assertThat("Backpressure not used", readyUsed, is(true))
-	})
-
-	it("should handle async generator", async function() {
-		async function* asyncInflateAccountNumber(accountNumber) {
-			yield createAccountFromAccountNumber(accountNumber)
-		}
-
-		const { count, readyUsed } = await newPipeline(
-			newInflatingStream(inflatingTransformOptions(withInflate(asyncInflateAccountNumber)))
-		)
-
-		assertThat("Not all ids processed", count, is(NUM_IDS))
-		assertThat("Backpressure not used", readyUsed, is(true))
-	})
-
-	it("should throw error if inflate is not implemented", async function() {
-		const result = newPipeline(newInflatingStream())
-
-		await promiseThat(result, isRejectedWith(errorMatcher("Unimplemented")))
-	})
-
-	it("should pass inflate via constructor prop", async function() {
-		await newPipeline(
-			newInflatingStream(inflatingTransformOptions(withInflate(inflateAccountNumber)))
-		)
-	})
-
-	it("should handle error from generator when inflating", async function() {
-		const message = "Inflation error";
-		const result = newPipeline(
-			newInflatingStream(inflatingTransformOptions(withInflate(errorGenerator(message))))
-		)
-
-		await promiseThat(result, isRejectedWith(errorMatcher(message)));
+		it("should pass inflate via constructor prop", async function() {
+			await newPipeline(
+				newInflatingStream(inflatingTransformOptions(withInflate(inflateAccountNumber)))
+			)
+		});
 	});
 
-	it("should handle error from generator when flushing", async function() {
-		const message = "Flush error";
-		const result = newPipeline(
-			newInflatingStream(inflatingTransformOptions(withProps(
-				withInflate(inflateAccountNumber),
-				withBurst(errorGenerator(message))
-			)))
-		)
+	describe("errors", function() {
+		it("should handle error from generator when inflating", async function() {
+			const message = "Inflation error";
+			const result = newPipeline(
+				newInflatingStream(inflatingTransformOptions(withInflate(errorGenerator(message))))
+			)
 
-		await promiseThat(result, isRejectedWith(errorMatcher(message)));
+			await promiseThat(result, isRejectedWith(errorMatcher(message)));
+		});
+
+		it("should handle error from generator when flushing", async function() {
+			const message = "Flush error";
+			const result = newPipeline(
+				newInflatingStream(inflatingTransformOptions(withProps(
+					withInflate(inflateAccountNumber),
+					withBurst(errorGenerator(message))
+				)))
+			)
+
+			await promiseThat(result, isRejectedWith(errorMatcher(message)));
+		});
+
+		it("should not swallow error thrown in callback when inflating", function() {
+			const message = "Error in transform callback"
+			const stream = newInflatingStream(inflatingTransformOptions(withInflate(inflateAccountNumber)))
+			const callback = errorCallback(message);
+
+			assertThat(
+				() => stream._transform("1", "utf-8", callback.callback),
+				throws(errorMatcher(message))
+			)
+
+			assertThat("Callback invoked too many times", callback.timesInvoked(), is(1))
+		});
+
+		it("should not swallow error thrown in callback when flushing", function() {
+			const message = "Error in flush callback"
+			const stream = newInflatingStream(inflatingTransformOptions(withInflate(inflateAccountNumber)))
+			const callback = errorCallback(message);
+
+			assertThat(
+				() => stream._flush(callback.callback),
+				throws(errorMatcher(message))
+			)
+
+			assertThat("Callback invoked too many times", callback.timesInvoked(), is(1))
+		});
 	});
-
-	it("should not swallow error thrown in callback when inflating", function() {
-		const message = "Error in transform callback"
-		const stream = newInflatingStream(inflatingTransformOptions(withInflate(inflateAccountNumber)))
-		const callback = errorCallback(message);
-
-		assertThat(
-			() => stream._transform("1", "utf-8", callback.callback),
-			throws(errorMatcher(message))
-		)
-
-		assertThat("Callback invoked too many times", callback.timesInvoked(), is(1))
-	})
-
-	it("should not swallow error thrown in callback when flushing", function() {
-		const message = "Error in flush callback"
-		const stream = newInflatingStream(inflatingTransformOptions(withInflate(inflateAccountNumber)))
-		const callback = errorCallback(message);
-
-		assertThat(
-			() => stream._flush(callback.callback),
-			throws(errorMatcher(message))
-		)
-
-		assertThat("Callback invoked too many times", callback.timesInvoked(), is(1))
-	})
 });
 
 class GeneratorStream extends Readable {
