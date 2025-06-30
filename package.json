@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git@github.com:kierans/node-inflating-stream.git"
+    "url": "git@github.com:kierans/node-inflating-transform.git"
   },
   "keywords": [
     "transform",
@@ -21,9 +21,9 @@
   "author": "Kieran Simpson <kierans777@gmail.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/kierans/node-inflating-stream/issues"
+    "url": "https://github.com/kierans/node-inflating-transform/issues"
   },
-  "homepage": "https://github.com/kierans/node-inflating-stream#readme",
+  "homepage": "https://github.com/kierans/node-inflating-transform#readme",
   "devDependencies": {
     "@types/node": "^18.19.84",
     "hamjest": "^4.1.0",
