@@ -53,12 +53,12 @@ const sequenceGenerator = (start, num) => {
 
 	return ({
 		next() {
-			return next < last ?
-				{
+			return next < last
+				? {
 					value: next++,
 					done: false
 				}
-												 : {
+				: {
 					value: last,
 					done: true
 				};
