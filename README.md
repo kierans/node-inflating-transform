@@ -7,7 +7,9 @@ A Transform is a Duplex stream, in that it is Readable and Writable. It therefor
 buffers, a write buffer and a read buffer. The write buffer holds data from calls to `write`
 and the read buffer holds data that is to be consumed by calls to `read`. Data from the
 write buffer is given to the `_transform` method of the Transform stream. Implementations of
-`_transform` have to [add output to the read buffer][3] via calls to `push`.
+`_transform` have to [add output to the read buffer][3] via calls to `push`. `_transform` 
+signals when a chunk of data from the Writable buffer is processed by using the `callback` 
+argument.
 
 A common scenario can occur when a Transform is outputting more data than it is receiving
 into the transformation process. For example, when unzipping or inflating compressed data,
