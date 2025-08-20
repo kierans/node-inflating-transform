@@ -54,6 +54,8 @@ provides a default implementation of `_flush`. The method will use a generator m
 The default implementation of `*_burst` simply yields `null`. Subclasses may override
 `*_burst`, or provide it via the constructor option `burst`.
 
+Read more at https://medium.com/@kierans777/youve-been-using-node-js-transform-streams-wrong-064274823a27
+
 [1]: https://nodejs.org/docs/latest-v18.x/api/stream.html#readablepushchunk-encoding
 [2]: https://nodejs.org/docs/latest-v18.x/api/stream.html#readable_readsize
 [3]: https://nodejs.org/docs/latest-v18.x/api/stream.html#transform_transformchunk-encoding-callback
