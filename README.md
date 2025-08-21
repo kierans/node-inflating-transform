@@ -1,7 +1,7 @@
 # inflating-transform
 
 A Node.js [Transform stream][4] that handles streaming large volumes of data produced from input
-to the stream.
+to the stream. Includes TypeScript type definitions.
 
 A Transform is a Duplex stream, in that it is Readable and Writable. It therefore has two
 buffers, a write buffer and a read buffer. The write buffer holds data from calls to `write`
@@ -67,8 +67,12 @@ Read more at https://medium.com/@kierans777/youve-been-using-node-js-transform-s
 $ npm install inflating-transform
 ```
 
+A full example is available in the [examples](./examples) directory.
+
+### JavaScript
+
 ```javascript
-const InflatingTransform = require("inflating-transform");
+const { InflatingTransform } = require("inflating-transform");
 
 let stream;
 
@@ -119,6 +123,76 @@ stream = new InflatingTransform({
     this.push(null)
      
     callback()
+  }
+});
+```
+
+### TypeScript
+
+```typescript
+import { InflatingTransform, InflatedData } from 'inflating-transform';
+
+let stream: InflatingTransform<any, any>;
+
+// use props to provide generators to object
+stream = new InflatingTransform<Buffer, string>({
+  inflate: function*(chunk: Buffer, encoding?: BufferEncoding): Generator<InflatedData<string>> {
+    yield doSomethingWithChunk(chunk)
+  },
+  burst: function*(): Generator<InflatedData<string> | null> {
+    yield doSomeFinalWork()
+  }
+});
+
+// use generators that yield promises
+stream = new InflatingTransform<Buffer, string>({
+  inflate: function*(chunk: Buffer, encoding?: BufferEncoding): Generator<Promise<InflatedData<string>>> {
+    yield Promise.resolve(doSomethingWithChunk(chunk));
+  },
+  burst: function*(): Generator<Promise<InflatedData<string>> | null> {
+    yield Promise.resolve(doSomeFinalWork());
+  }
+});
+
+// use async generators
+stream = new InflatingTransform<Buffer, string>({
+  inflate: async function*(chunk: Buffer, encoding?: BufferEncoding): AsyncGenerator<InflatedData<string>> {
+    yield doSomethingWithChunk(chunk)
+  },
+  burst: async function*(): AsyncGenerator<InflatedData<string> | null> {
+    yield doSomeFinalWork()
+  }
+});
+
+// use classical OO inheritance
+class DoSomethingTransform extends InflatingTransform<Buffer, string> {
+  *_inflate(chunk: Buffer, encoding?: BufferEncoding): Generator<InflatedData<string>> {
+    yield this.doSomethingWithChunk(chunk)
+  }
+
+  *_burst(): Generator<InflatedData<string> | null> {
+    yield this.doSomeFinalWork()
+  }
+}
+
+stream = new DoSomethingTransform();
+
+// use stream overriding transform and flush behaviour
+stream = new InflatingTransform<Buffer, string>({
+  transform(chunk: Buffer, encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
+    const more = this.push(doSomethingWithChunk(chunk));
+    
+    if (more) {
+      callback();
+    } 
+    else {
+      this.once("ready", callback);
+    }
+  },
+  flush(callback: (error?: Error | null) => void): void {
+    this.push(null);
+     
+    callback();
   }
 });
 ```
