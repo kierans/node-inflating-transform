@@ -3,6 +3,7 @@
   "version": "0.4.1",
   "description": "Transform stream that handles large volumes of data",
   "main": "index.js",
+  "types": "index.d.ts",
   "scripts": {
     "test": "mocha test --timeout=30000"
   },
@@ -16,6 +17,7 @@
   ],
   "files": [
     "index.js",
+    "index.d.ts",
     "README.md"
   ],
   "author": "Kieran Simpson <kierans777@gmail.com>",

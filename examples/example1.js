@@ -1,7 +1,7 @@
 const { Readable, Writable } = require("node:stream");
 const { pipeline } = require("node:stream/promises");
 
-const InflatingTransform = require("../index");
+const { InflatingTransform } = require("../index");
 
 /*
  * This example demonstrates the use of an InflatingTransform stream.

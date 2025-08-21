@@ -375,4 +375,6 @@ const voidToNull = (fn) => () => {
 	return null;
 }
 
-module.exports = InflatingTransform
+module.exports = {
+	InflatingTransform
+}

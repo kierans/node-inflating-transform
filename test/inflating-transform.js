@@ -1,7 +1,7 @@
 const { Readable, Writable } = require("node:stream");
 const { pipeline } = require("node:stream/promises");
 
-const InflatingTransform = require("../index");
+const { InflatingTransform } = require("../index");
 
 const {
 	assertThat,
@@ -176,7 +176,7 @@ class AccountLookupStream extends InflatingTransform {
 		this.once("ready", () => this.readyUsed = true);
 	}
 
-	* _inflate(chunk, encoding) {
+	* _inflate(chunk, _) {
 		yield createAccountFromAccountNumber(chunk)
 	}
 }
