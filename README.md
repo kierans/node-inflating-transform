@@ -106,25 +106,6 @@ class DoSomethingTransform extends InflatingTransform {
 }
 
 stream = new DoSomethingTransform();
-
-// use stream overriding transform and flush behaviour
-stream = new InflatingTransform({ 
-  transform(chunk, encoding, callback) {
-    const more = this.push(doSomethingWithChunk(chunk))
-    
-    if (more) {
-      callback()
-    } 
-    else {
-      this.once("ready", callback)
-    }
-  },
-  flush(callback) {
-    this.push(null)
-     
-    callback()
-  }
-});
 ```
 
 ### TypeScript
@@ -176,25 +157,6 @@ class DoSomethingTransform extends InflatingTransform<Buffer, string> {
 }
 
 stream = new DoSomethingTransform();
-
-// use stream overriding transform and flush behaviour
-stream = new InflatingTransform<Buffer, string>({
-  transform(chunk: Buffer, encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
-    const more = this.push(doSomethingWithChunk(chunk));
-    
-    if (more) {
-      callback();
-    } 
-    else {
-      this.once("ready", callback);
-    }
-  },
-  flush(callback: (error?: Error | null) => void): void {
-    this.push(null);
-     
-    callback();
-  }
-});
 ```
 
 ## Tests
