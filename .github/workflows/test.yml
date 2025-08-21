@@ -6,10 +6,10 @@ name: Test package
 on:
   push:
     branches: [ "main" ]
-    
+
   pull_request:
     branches: [ "main" ]
-    
+
   workflow_dispatch:
 
 jobs:
@@ -20,14 +20,21 @@ jobs:
       matrix:
         # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
         node-version: [ 18.x, 20.x, 22.x ]
-        
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
-      - run: npm ci
-      - run: NUM_IDS=1000 npm test
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: NUM_IDS=1000 npm test
+
+      - name: Run examples
+        run: cd examples && node example1.js
